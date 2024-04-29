@@ -8,7 +8,7 @@ def main():
         """
         <style>
         body {
-            background-color: #e6eaf0; /* Greyish blue background */
+            background-color: #E6EAF0; /* Greyish blue background */
             color: black; /* Set text color to black */
         }
         </style>
@@ -37,10 +37,27 @@ def main():
     claim_status_filter = st.sidebar.selectbox('Filter by Claim Status', ['All'] + sorted(data['CLAIM_STATUS'].unique()))
     if claim_status_filter != 'All':
         data = data[data['CLAIM_STATUS'] == claim_status_filter]
+    # Calculate sum of reserve, average days to settle, and claim count per peril
+    avg_days_per_peril = data.groupby('PERIL').agg({'DAYS_TO_SETTLE': 'mean', 'SUM(RESERVE)': 'sum', 'CLAIM_COUNT': 'sum'}).reset_index()
+    avg_days_per_peril.columns = ['PERIL', 'AVG_DAYS_TO_SETTLE', 'SUM_OF_RESERVE', 'CLAIM_COUNT']
+    # Select multiple perils to show
+    selected_perils = st.sidebar.multiselect('Select Perils', sorted(data['PERIL'].unique()))
+    # Display table with sum of reserve, average days to settle, and claim count for selected perils
+    if selected_perils:
+        avg_days_per_peril_filtered = avg_days_per_peril[avg_days_per_peril['PERIL'].isin(selected_perils)]
+        st.write(avg_days_per_peril_filtered)
+    # Slider filter for average days to settle per peril
+    avg_days_range = (avg_days_per_peril['AVG_DAYS_TO_SETTLE'].min(), avg_days_per_peril['AVG_DAYS_TO_SETTLE'].max())
+    selected_avg_days = st.sidebar.slider('Filter by Average Days to Settle', min_value=avg_days_range[0], max_value=avg_days_range[1], value=avg_days_range)
+    # Apply average days to settle filter
+    data = data[data['DAYS_TO_SETTLE'] >= selected_avg_days[0]]
+    data = data[data['DAYS_TO_SETTLE'] <= selected_avg_days[1]]
     # Slider filter for sum of reserve
-    sum_reserve_filter = st.sidebar.slider('Filter by Sum of Reserve', min_value=float(data['SUM(RESERVE)'].min()), max_value=float(data['SUM(RESERVE)'].max()), value=(float(data['SUM(RESERVE)'].min()), float(data['SUM(RESERVE)'].max())))
+    sum_reserve_range = (avg_days_per_peril['SUM_OF_RESERVE'].min(), avg_days_per_peril['SUM_OF_RESERVE'].max())
+    selected_sum_reserve = st.sidebar.slider('Filter by Sum of Reserve', min_value=sum_reserve_range[0], max_value=sum_reserve_range[1], value=sum_reserve_range)
     # Apply sum of reserve filter
-    data = data[(data['SUM(RESERVE)'] >= sum_reserve_filter[0]) & (data['SUM(RESERVE)'] <= sum_reserve_filter[1])]
+    data = data[data['SUM(RESERVE)'] >= selected_sum_reserve[0]]
+    data = data[data['SUM(RESERVE)'] <= selected_sum_reserve[1]]
     # Boxplot
     fig = px.box(data, x='PERIL', y='INCURRED', color='PERIL', title='Boxplot of Incurred Values by Peril',
                  labels={'PERIL': 'Peril', 'INCURRED': 'Incurred Value'}, hover_data=['CLAIM_REFERENCE', 'CLAIM_COUNT', 'SUM(RESERVE)'])
@@ -48,27 +65,5 @@ def main():
     fig.update_layout(xaxis={'tickangle': 45}, height=600, width=1000)  # Set boxplot size
     # Show the plot
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Showing a table with total claim_count and sum(reserved) for each peril when a peril is selected
-    selected_peril = st.selectbox('Select a Peril to Show Total Claim Count and Sum of Reserve', [''] + sorted(data['PERIL'].unique()))
-    if selected_peril:
-        peril_data = data[data['PERIL'] == selected_peril]
-        summed_claim_count = peril_data['CLAIM_COUNT'].sum()
-        summed_reserve = peril_data['SUM(RESERVE)'].sum()
-        table_data = {'Claim Count Sum': [summed_claim_count], 'Sum of Reserve': [summed_reserve]}
-        st.table(pd.DataFrame(table_data))
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-
